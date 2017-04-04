@@ -48,7 +48,12 @@ initialize_with(Users, LoggedIn, Channels) ->
 server_actor(Users, LoggedIn, Channels) ->
 	receive
 		{Sender, register_user, UserName} ->
-			NewUsers = dict:store(UserName, {user, UserName, sets:new()}, Users),
+			% Join user in main channel
+			ChannelPid = dict:fetch(main, Channels), % assumes main channel exists
+			ChannelPid ! {self(), join_user, UserName},
+			Subscriptions = sets:new(),
+			NewUsers = dict:store(UserName, {user, UserName, sets:add_element(main, Subscriptions)}, Users),
+			% Send confirmation to client
 			Sender ! {self(), user_registered},
 			server_actor(NewUsers, LoggedIn, Channels);
 
