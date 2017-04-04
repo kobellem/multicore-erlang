@@ -73,7 +73,15 @@ server_actor(Users, LoggedIn, Channels) ->
 
 		{Sender, log_out, UserName} ->
 			NewLoggedIn = dict:erase(UserName, LoggedIn),
-			% TODO send logged out signal to subscribed channels
+			% send logged out signal to all subscribed channels
+			{_, _, Subscriptions} = dict:fetch(UserName, Users), % assumes user exists
+			SubscriptionList = sets:to_list(Subscriptions),
+			Logout = fun(ChannelName) ->
+				ChannelPid = dict:fetch(ChannelName, Channels), % assumes channel exists
+				ChannelPid ! {Sender, log_out, UserName}
+			end,
+			lists:foreach(Logout, SubscriptionList),
+			% send confirmation to client
 			Sender ! {self(), logged_out},
 			server_actor(Users, NewLoggedIn, Channels);
 
