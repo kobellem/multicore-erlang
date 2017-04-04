@@ -23,7 +23,13 @@ initialize() ->
 	Users = dict:new(),
 	LoggedIn = dict:new(),
 	MainChannelPid = spawn_link(channel, channel_actor, [Users, LoggedIn, []]),
-	Channels = dict:store(main, MainChannelPid, dict:new()),
+	Channels__ = dict:store(main, MainChannelPid, dict:new()),
+	% Channels for tests
+	% TODO create channel function so this isn't necessary
+	Channel1Pid = spawn_link(channel, channel_actor, [Users, LoggedIn, []]),
+	Channel2Pid = spawn_link(channel, channel_actor, [Users, LoggedIn, []]),
+	Channels_ = dict:store(channel1, Channel1Pid, Channels__),
+	Channels = dict:store(channel2, Channel2Pid, Channels_),
 	initialize_with(Users, LoggedIn, Channels).
 
 % Start server with an initial state.
@@ -73,7 +79,7 @@ server_actor(Users, LoggedIn, Channels) ->
 
 		{Sender, log_out, UserName} ->
 			NewLoggedIn = dict:erase(UserName, LoggedIn),
-			% send logged out signal to all subscribed channels
+			% Send logged out signal to all subscribed channels
 			{_, _, Subscriptions} = dict:fetch(UserName, Users), % assumes user exists
 			SubscriptionList = sets:to_list(Subscriptions),
 			Logout = fun(ChannelName) ->
@@ -81,7 +87,7 @@ server_actor(Users, LoggedIn, Channels) ->
 				ChannelPid ! {Sender, log_out, UserName}
 			end,
 			lists:foreach(Logout, SubscriptionList),
-			% send confirmation to client
+			% Send confirmation to client
 			Sender ! {self(), logged_out},
 			server_actor(Users, NewLoggedIn, Channels);
 
@@ -89,7 +95,10 @@ server_actor(Users, LoggedIn, Channels) ->
 			User = dict:fetch(UserName, Users), % assumes user exists
 			NewUser = join_channel(User, ChannelName),
 			NewUsers = dict:store(UserName, NewUser, Users),
-			% TODO send join user signal to channel
+			% Send join user signal to channel
+			ChannelPid = dict:fetch(ChannelName, Channels),
+			ChannelPid ! {Sender, join_channel, UserName},
+			% Send confirmation to client
 			Sender ! {self(), channel_joined},
 			server_actor(NewUsers, LoggedIn, Channels);
 
@@ -123,7 +132,6 @@ find_or_create_channel(ChannelName, Channels) ->
 
 % Modify `User` to join `ChannelName`.
 join_channel({user, Name, Subscriptions}, ChannelName) ->
-	% TODO send join to channel process
 	{user, Name, sets:add_element(ChannelName, Subscriptions)}.
 
 % Modify `Channels` to store `Message`.
@@ -190,10 +198,10 @@ join_channel_test() ->
 	[UserName1 | _] = register_user_test(),
 	{Server1, logged_in} = server:log_in(server_actor, UserName1),
 	?assertMatch(channel_joined,
-		server:join_channel(Server1, UserName1, "Channel1")),
+		server:join_channel(Server1, UserName1, channel1)),
 	?assertMatch(channel_joined,
-		server:join_channel(Server1, UserName1, "Channel2")),
-	{UserName1, Server1, "Channel1", "Channel2"}.
+		server:join_channel(Server1, UserName1, channel2)),
+	{UserName1, Server1, channel1, channel2}.
 
 send_message_test() ->
 	{UserName1, Server1, Channel1, _Channel2} = join_channel_test(),
@@ -207,7 +215,7 @@ channel_history_test() ->
 	[UserName1, UserName2 | _] = register_user_test(),
 	{Server1, logged_in} = server:log_in(server_actor, UserName1),
 	{Server2, logged_in} = server:log_in(server_actor, UserName2),
-	Channel1 = "Channel1",
+	Channel1 = channel1,
 	server:join_channel(Server1, UserName1, Channel1),
 	server:join_channel(Server2, UserName2, Channel1),
 
