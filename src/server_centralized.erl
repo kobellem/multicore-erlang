@@ -19,7 +19,12 @@
 
 % Start server.
 initialize() ->
-	initialize_with(dict:new(), dict:new(), dict:new()).
+	% Create a new main channel
+	Users = dict:new(),
+	LoggedIn = dict:new(),
+	MainChannelPid = spawn_link(channel, channel_actor, [Users, LoggedIn, []]),
+	Channels = dict:store(main, MainChannelPid, dict:new()),
+	initialize_with(Users, LoggedIn, Channels).
 
 % Start server with an initial state.
 % Useful for benchmarking.
@@ -36,8 +41,8 @@ initialize_with(Users, LoggedIn, Channels) ->
 %	 {user, Name, Subscriptions}
 %   where Subscriptions is a set of channels that the user joined.
 % * LoggedIn is a dictionary of the names of logged in users and their pid.
-% * Channels is a dictionary of channel names to tuples:
-%	 {channel, Name, Messages}
+% * Channels is a dictionary of channel names and their pid's:
+%	 {channel, Name, Pid}
 %   where Messages is a list of messages, of the form:
 %	 {message, UserName, ChannelName, MessageText, SendTime}
 server_actor(Users, LoggedIn, Channels) ->
@@ -49,11 +54,13 @@ server_actor(Users, LoggedIn, Channels) ->
 
 		{Sender, log_in, UserName} ->
 			NewLoggedIn = dict:store(UserName, Sender, LoggedIn),
+			% TODO send logged in signal to subscribed channels
 			Sender ! {self(), logged_in},
 			server_actor(Users, NewLoggedIn, Channels);
 
 		{Sender, log_out, UserName} ->
 			NewLoggedIn = dict:erase(UserName, LoggedIn),
+			% TODO send logged out signal to subscribed channels
 			Sender ! {self(), logged_out},
 			server_actor(Users, NewLoggedIn, Channels);
 
@@ -61,11 +68,13 @@ server_actor(Users, LoggedIn, Channels) ->
 			User = dict:fetch(UserName, Users), % assumes user exists
 			NewUser = join_channel(User, ChannelName),
 			NewUsers = dict:store(UserName, NewUser, Users),
+			% TODO send join user signal to channel
 			Sender ! {self(), channel_joined},
 			server_actor(NewUsers, LoggedIn, Channels);
 
 		{Sender, send_message, UserName, ChannelName, MessageText, SendTime} ->
 			Message = {message, UserName, ChannelName, MessageText, SendTime},
+			% TODO send message to channel
 			% 1. Store message in its channel
 			NewChannels = store_message(Message, Channels),
 			% 2. Send logged in users the message, if they joined this channel
@@ -87,15 +96,18 @@ server_actor(Users, LoggedIn, Channels) ->
 find_or_create_channel(ChannelName, Channels) ->
 	case dict:find(ChannelName, Channels) of
 		{ok, Channel} -> Channel;
+		% TODO spawn new channel process
 		error ->		 {channel, ChannelName, []}
 	end.
 
 % Modify `User` to join `ChannelName`.
 join_channel({user, Name, Subscriptions}, ChannelName) ->
+	% TODO send join to channel process
 	{user, Name, sets:add_element(ChannelName, Subscriptions)}.
 
 % Modify `Channels` to store `Message`.
 store_message(Message, Channels) ->
+	% TODO delete once messages are send to channel processes
 	{message, _UserName, ChannelName, _MessageText, _SendTime} = Message,
 	{channel, ChannelName, Messages} = find_or_create_channel(ChannelName, Channels),
 	dict:store(ChannelName, {channel, ChannelName, Messages ++ [Message]}, Channels).
@@ -106,6 +118,7 @@ broadcast_message_to_members(Users, LoggedIn, Message) ->
 	{message, SenderName, ChannelName, _MessageText, _SendTime} = Message,
 	% For each LoggedIn user, fetch his subscriptions and check whether those
 	% contain the channel
+	% TODO move functionality to channel process
 	Subscribed = fun(UserName, _) ->
 		{user, _, Subscriptions} = dict:fetch(UserName, Users),
 		IsMember = sets:is_element(ChannelName, Subscriptions),
