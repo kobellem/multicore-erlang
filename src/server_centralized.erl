@@ -54,12 +54,20 @@ server_actor(Users, LoggedIn, Channels) ->
 			Subscriptions = sets:new(),
 			NewUsers = dict:store(UserName, {user, UserName, sets:add_element(main, Subscriptions)}, Users),
 			% Send confirmation to client
-			Sender ! {self(), user_registered},
+			Sender ! {Sender, user_registered},
 			server_actor(NewUsers, LoggedIn, Channels);
 
 		{Sender, log_in, UserName} ->
 			NewLoggedIn = dict:store(UserName, Sender, LoggedIn),
-			% TODO send logged in signal to subscribed channels
+			% Send logged in signal to all subscribed channels
+			{_, _, Subscriptions} = dict:fetch(UserName, Users), % assumes user exists
+			SubscriptionList = sets:to_list(Subscriptions),
+			Login = fun(ChannelName) ->
+				ChannelPid = dict:fetch(ChannelName, Channels), % assumes channel exists
+				ChannelPid ! {Sender, log_in, UserName}
+			end,
+			lists:foreach(Login, SubscriptionList),
+			% Send confirmation to client
 			Sender ! {self(), logged_in},
 			server_actor(Users, NewLoggedIn, Channels);
 
