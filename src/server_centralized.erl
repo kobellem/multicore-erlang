@@ -20,7 +20,7 @@
 % Start server.
 initialize() ->
 	% Create a new main channel
-	Users = dict:new(),
+	Users = sets:new(),
 	LoggedIn = dict:new(),
 	MainChannelPid = spawn_link(channel, channel_actor, [Users, LoggedIn, []]),
 	Channels = dict:store(main, MainChannelPid, dict:new()),
@@ -32,7 +32,7 @@ initialize() ->
 	Channels_ = dict:store(channel1, Channel1Pid, Channels),
 	Channels__ = dict:store(channel2, Channel2Pid, Channels_),
 	Channels___ = dict:store("multicore", Channel3Pid, Channels__),
-	initialize_with(Users, LoggedIn, Channels___).
+	initialize_with(dict:new(), LoggedIn, Channels___).
 
 % Start server with an initial state.
 % Useful for benchmarking.
@@ -58,11 +58,11 @@ server_actor(Users, LoggedIn, Channels) ->
 		{Sender, register_user, UserName} ->
 			% Join user in main channel
 			ChannelPid = dict:fetch(main, Channels), % assumes main channel exists
-			ChannelPid ! {Sender, join_user, UserName},
+			ChannelPid ! {Sender, join_channel, UserName},
 			Subscriptions = sets:new(),
 			NewUsers = dict:store(UserName, {user, UserName, sets:add_element(main, Subscriptions)}, Users),
 			% Send confirmation to client
-			Sender ! {Sender, user_registered},
+			Sender ! {self(), user_registered},
 			server_actor(NewUsers, LoggedIn, Channels);
 
 		{Sender, log_in, UserName} ->
@@ -75,8 +75,6 @@ server_actor(Users, LoggedIn, Channels) ->
 				ChannelPid ! {Sender, log_in, UserName}
 			end,
 			lists:foreach(Login, SubscriptionList),
-			% Send confirmation to client
-			Sender ! {self(), logged_in},
 			server_actor(Users, NewLoggedIn, Channels);
 
 		{Sender, log_out, UserName} ->
@@ -89,8 +87,6 @@ server_actor(Users, LoggedIn, Channels) ->
 				ChannelPid ! {Sender, log_out, UserName}
 			end,
 			lists:foreach(Logout, SubscriptionList),
-			% Send confirmation to client
-			Sender ! {self(), logged_out},
 			server_actor(Users, NewLoggedIn, Channels);
 
 		{Sender, join_channel, UserName, ChannelName} ->
@@ -100,16 +96,12 @@ server_actor(Users, LoggedIn, Channels) ->
 			% Send join user signal to channel
 			ChannelPid = dict:fetch(ChannelName, Channels),
 			ChannelPid ! {Sender, join_channel, UserName},
-			% Send confirmation to client
-			Sender ! {self(), channel_joined},
 			server_actor(NewUsers, LoggedIn, Channels);
 
 		{Sender, send_message, UserName, ChannelName, MessageText, SendTime} ->
 			% send message to channel
 			ChannelPid = dict:fetch(ChannelName, Channels),
 			ChannelPid ! {Sender, send_message, UserName, MessageText, SendTime},
-			% Send confirmation to client
-			Sender ! {self(), message_sent},
 			server_actor(Users, LoggedIn, Channels);
 
 		{Sender, get_channel_history, ChannelName} ->
@@ -133,32 +125,6 @@ find_or_create_channel(ChannelName, Channels) ->
 % Modify `User` to join `ChannelName`.
 join_channel({user, Name, Subscriptions}, ChannelName) ->
 	{user, Name, sets:add_element(ChannelName, Subscriptions)}.
-
-% Modify `Channels` to store `Message`.
-store_message(Message, Channels) ->
-	% TODO delete once messages are send to channel processes
-	{message, _UserName, ChannelName, _MessageText, _SendTime} = Message,
-	{channel, ChannelName, Messages} = find_or_create_channel(ChannelName, Channels),
-	dict:store(ChannelName, {channel, ChannelName, Messages ++ [Message]}, Channels).
-
-% Broadcast `Message` to `Users` if they joined the channel and are logged in.
-% (But don't send it to the sender.)
-broadcast_message_to_members(Users, LoggedIn, Message) ->
-	{message, SenderName, ChannelName, _MessageText, _SendTime} = Message,
-	% For each LoggedIn user, fetch his subscriptions and check whether those
-	% contain the channel
-	% TODO move functionality to channel process
-	Subscribed = fun(UserName, _) ->
-		{user, _, Subscriptions} = dict:fetch(UserName, Users),
-		IsMember = sets:is_element(ChannelName, Subscriptions),
-		IsMember and (UserName /= SenderName)
-	end,
-	LoggedInAndSubscribed = dict:filter(Subscribed, LoggedIn),
-	% Send messages
-	dict:map(fun(_, UserPid) ->
-		UserPid ! {self(), new_message, Message}
-	end, LoggedInAndSubscribed),
-	ok.
 
 %%
 %% Tests
