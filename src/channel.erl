@@ -10,9 +10,9 @@ initialize_with(Users, LoggedIn) ->
 
 channel_actor(Users, LoggedIn, Messages) ->
 	receive
-		{Sender, join_user, UserName} ->
+		{Sender, join_channel, UserName} ->
 			NewUsers = dict:store(user, UserName, Users),
-			Sender ! {self(), user_joined},
+			Sender ! {self(), channel_joined},
 			channel_actor(NewUsers, LoggedIn, Messages);
 
 		{Sender, log_in, UserName} ->
@@ -26,10 +26,10 @@ channel_actor(Users, LoggedIn, Messages) ->
 			channel_actor(Users, NewLoggedIn, Messages);
 
 		{Sender, send_message, UserName, MessageText, SendTime} ->
-			NewMessages = dict:store(message, UserName, MessageText, SendTime),
+			NewMessages = lists:append([{message, UserName, MessageText, SendTime}], Messages),
 			% TODO broadcast to all logged in users
 			Sender ! {self(), message_sent},
-			channel_actor(Users, LoggedIn, Messages);
+			channel_actor(Users, LoggedIn, NewMessages);
 
 		{Sender, get_channel_history} ->
 			Sender ! {self(), channel_history, Messages},

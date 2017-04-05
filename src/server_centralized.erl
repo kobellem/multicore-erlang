@@ -104,13 +104,12 @@ server_actor(Users, LoggedIn, Channels) ->
 
 		{Sender, send_message, UserName, ChannelName, MessageText, SendTime} ->
 			Message = {message, UserName, ChannelName, MessageText, SendTime},
-			% TODO send message to channel
-			% 1. Store message in its channel
-			NewChannels = store_message(Message, Channels),
-			% 2. Send logged in users the message, if they joined this channel
-			broadcast_message_to_members(Users, LoggedIn, Message),
+			% send message to channel
+			ChannelPid = dict:fetch(ChannelName, Channels),
+			ChannelPid ! {Sender, send_message, UserName, MessageText, SendTime},
+			% Send confirmation to client
 			Sender ! {self(), message_sent},
-			server_actor(Users, LoggedIn, NewChannels);
+			server_actor(Users, LoggedIn, Channels);
 
 		{Sender, get_channel_history, ChannelName} ->
 			{channel, ChannelName, Messages} = find_or_create_channel(ChannelName, Channels),
