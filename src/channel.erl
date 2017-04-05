@@ -11,7 +11,7 @@ initialize_with(Users, LoggedIn) ->
 channel_actor(Users, LoggedIn, Messages) ->
 	receive
 		{Sender, join_channel, UserName} ->
-			NewUsers = dict:store(user, UserName, Users),
+			NewUsers = sets:add_element(UserName, Users),
 			Sender ! {self(), channel_joined},
 			channel_actor(NewUsers, LoggedIn, Messages);
 
@@ -26,8 +26,12 @@ channel_actor(Users, LoggedIn, Messages) ->
 			channel_actor(Users, NewLoggedIn, Messages);
 
 		{Sender, send_message, UserName, MessageText, SendTime} ->
-			NewMessages = lists:append([{message, UserName, MessageText, SendTime}], Messages),
-			% TODO broadcast to all logged in users
+			Message = {message, UserName, MessageText, SendTime},
+			NewMessages = lists:append([Message], Messages),
+			% broadcast to all logged in users
+			dict:map(fun(_, UserPid) ->
+				UserPid ! {self(), new_message, Message}
+			end, LoggedIn),
 			Sender ! {self(), message_sent},
 			channel_actor(Users, LoggedIn, NewMessages);
 
