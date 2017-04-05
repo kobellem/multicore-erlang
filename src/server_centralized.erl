@@ -23,14 +23,16 @@ initialize() ->
 	Users = dict:new(),
 	LoggedIn = dict:new(),
 	MainChannelPid = spawn_link(channel, channel_actor, [Users, LoggedIn, []]),
-	Channels__ = dict:store(main, MainChannelPid, dict:new()),
+	Channels = dict:store(main, MainChannelPid, dict:new()),
 	% Channels for tests
 	% TODO create channel function so this isn't necessary
 	Channel1Pid = spawn_link(channel, channel_actor, [Users, LoggedIn, []]),
 	Channel2Pid = spawn_link(channel, channel_actor, [Users, LoggedIn, []]),
-	Channels_ = dict:store(channel1, Channel1Pid, Channels__),
-	Channels = dict:store(channel2, Channel2Pid, Channels_),
-	initialize_with(Users, LoggedIn, Channels).
+	Channel3Pid = spawn_link(channel, channel_actor, [Users, LoggedIn, []]),
+	Channels_ = dict:store(channel1, Channel1Pid, Channels),
+	Channels__ = dict:store(channel2, Channel2Pid, Channels_),
+	Channels___ = dict:store("multicore", Channel3Pid, Channels__),
+	initialize_with(Users, LoggedIn, Channels___).
 
 % Start server with an initial state.
 % Useful for benchmarking.
@@ -56,7 +58,7 @@ server_actor(Users, LoggedIn, Channels) ->
 		{Sender, register_user, UserName} ->
 			% Join user in main channel
 			ChannelPid = dict:fetch(main, Channels), % assumes main channel exists
-			ChannelPid ! {self(), join_user, UserName},
+			ChannelPid ! {Sender, join_user, UserName},
 			Subscriptions = sets:new(),
 			NewUsers = dict:store(UserName, {user, UserName, sets:add_element(main, Subscriptions)}, Users),
 			% Send confirmation to client
@@ -103,7 +105,6 @@ server_actor(Users, LoggedIn, Channels) ->
 			server_actor(NewUsers, LoggedIn, Channels);
 
 		{Sender, send_message, UserName, ChannelName, MessageText, SendTime} ->
-			Message = {message, UserName, ChannelName, MessageText, SendTime},
 			% send message to channel
 			ChannelPid = dict:fetch(ChannelName, Channels),
 			ChannelPid ! {Sender, send_message, UserName, MessageText, SendTime},
@@ -112,8 +113,8 @@ server_actor(Users, LoggedIn, Channels) ->
 			server_actor(Users, LoggedIn, Channels);
 
 		{Sender, get_channel_history, ChannelName} ->
-			{channel, ChannelName, Messages} = find_or_create_channel(ChannelName, Channels),
-			Sender ! {self(), channel_history, Messages},
+			ChannelPid = dict:fetch(ChannelName, Channels),
+			ChannelPid ! {Sender, get_channel_history},
 			server_actor(Users, LoggedIn, Channels)
 	end.
 
