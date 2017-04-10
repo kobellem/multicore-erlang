@@ -56,9 +56,9 @@ join_channel_test() ->
 send_message_test() ->
 	{UserName1, Server1, Channel1, _Channel2} = join_channel_test(),
 	?assertMatch(message_sent,
-		server:send_message(server_actor, UserName1, Channel1, "Hello!")),
+		server:send_message(Server1, UserName1, Channel1, "Hello!")),
 	?assertMatch(message_sent,
-		server:send_message(server_actor, UserName1, Channel1, "How are you?")).
+		server:send_message(Server1, UserName1, Channel1, "How are you?")).
 
 channel_history_test() ->
 	% Create users, log in, join channels.
