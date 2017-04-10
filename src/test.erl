@@ -38,21 +38,27 @@ log_out_test() ->
 	?assertMatch(logged_out, server:log_out(Server1, UserName1)),
 	?assertMatch(logged_out, server:log_out(Server2, UserName2)).
 
+create_channel_test() ->
+	?assertMatch(channel_created, server:create_channel(server_actor, channel1)),
+	?assertMatch(channel_created, server:create_channel(server_actor, channel2)),
+	[channel1, channel2].
+
 join_channel_test() ->
 	[UserName1 | _] = register_user_test(),
+	[Channel1, Channel2] = create_channel_test(),
 	{Server1, logged_in} = server:log_in(server_actor, UserName1),
 	?assertMatch(channel_joined,
-		server:join_channel(Server1, UserName1, channel1)),
+		server:join_channel(Server1, UserName1, Channel1)),
 	?assertMatch(channel_joined,
-		server:join_channel(Server1, UserName1, channel2)),
-	{UserName1, Server1, channel1, channel2}.
+		server:join_channel(Server1, UserName1, Channel2)),
+	{UserName1, Server1, Channel1, Channel2}.
 
 send_message_test() ->
 	{UserName1, Server1, Channel1, _Channel2} = join_channel_test(),
 	?assertMatch(message_sent,
-		server:send_message(Server1, UserName1, Channel1, "Hello!")),
+		server:send_message(server_actor, UserName1, Channel1, "Hello!")),
 	?assertMatch(message_sent,
-		server:send_message(Server1, UserName1, Channel1, "How are you?")).
+		server:send_message(server_actor, UserName1, Channel1, "How are you?")).
 
 channel_history_test() ->
 	% Create users, log in, join channels.
