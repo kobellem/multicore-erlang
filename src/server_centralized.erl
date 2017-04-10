@@ -24,15 +24,7 @@ initialize() ->
 	LoggedIn = dict:new(),
 	MainChannelPid = spawn_link(channel, channel_actor, [Users, LoggedIn, []]),
 	Channels = dict:store(main, MainChannelPid, dict:new()),
-	% Channels for tests
-	% TODO create channel function so this isn't necessary
-	Channel1Pid = spawn_link(channel, channel_actor, [Users, LoggedIn, []]),
-	Channel2Pid = spawn_link(channel, channel_actor, [Users, LoggedIn, []]),
-	Channel3Pid = spawn_link(channel, channel_actor, [Users, LoggedIn, []]),
-	Channels_ = dict:store(channel1, Channel1Pid, Channels),
-	Channels__ = dict:store(channel2, Channel2Pid, Channels_),
-	Channels___ = dict:store("multicore", Channel3Pid, Channels__),
-	initialize_with(dict:new(), LoggedIn, Channels___).
+	initialize_with(dict:new(), LoggedIn, Channels).
 
 % Start server with an initial state.
 % Useful for benchmarking.
@@ -94,7 +86,7 @@ server_actor(Users, LoggedIn, Channels) ->
 			NewUser = join_channel(User, ChannelName),
 			NewUsers = dict:store(UserName, NewUser, Users),
 			% Send join user signal to channel
-			ChannelPid = dict:fetch(ChannelName, Channels),
+			ChannelPid = dict:fetch(ChannelName, Channels), % assumes channel exists
 			ChannelPid ! {Sender, join_channel, UserName},
 			server_actor(NewUsers, LoggedIn, Channels);
 
@@ -107,20 +99,19 @@ server_actor(Users, LoggedIn, Channels) ->
 		{Sender, get_channel_history, ChannelName} ->
 			ChannelPid = dict:fetch(ChannelName, Channels),
 			ChannelPid ! {Sender, get_channel_history},
-			server_actor(Users, LoggedIn, Channels)
+			server_actor(Users, LoggedIn, Channels);
+
+		{Sender, create_channel, ChannelName} ->
+			ChannelPid = 	spawn_link(channel, channel_actor, [sets:new(), dict:new(), []]),
+			NewChannels = dict:store(ChannelName, ChannelPid, Channels),
+			% Send confirmation to client
+			Sender ! {self(), channel_created},
+			server_actor(Users, LoggedIn, NewChannels)
 	end.
 
 %%
 %% Internal Functions
 %%
-
-% Find channel, or create new channel
-find_or_create_channel(ChannelName, Channels) ->
-	case dict:find(ChannelName, Channels) of
-		{ok, Channel} -> Channel;
-		% TODO spawn new channel process
-		error ->		 {channel, ChannelName, []}
-	end.
 
 % Modify `User` to join `ChannelName`.
 join_channel({user, Name, Subscriptions}, ChannelName) ->

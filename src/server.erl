@@ -8,7 +8,7 @@
 -module(server).
 
 -export([register_user/2, log_in/2, log_out/2, join_channel/3, send_message/4,
-         get_channel_history/2]).
+         get_channel_history/2, create_channel/2]).
 
 %%
 %% Server API
@@ -75,6 +75,15 @@ get_channel_history(ServerPid, ChannelName) ->
         {_ResponsePid, channel_history, Messages} ->
             Messages
     end.
+
+% Create a new channel
+-spec create_channel(pid(), string()) -> channel_created.
+create_channel(ServerPid, ChannelName) ->
+	ServerPid ! {self(), create_channel, ChannelName},
+	receive
+		{_ResponsePid, channel_created} ->
+			channel_created
+	end.
 
 %%
 %% Client API
