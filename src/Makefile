@@ -4,7 +4,7 @@ BEAM	= $(ERL_SRC:.erl=.beam)
 all: $(BEAM) test
 
 test:
-	./run.sh server_centralized test
+	./run.sh test test
 
 benchmark: $(BEAM)
 	./run_benchmarks.sh
