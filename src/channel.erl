@@ -20,13 +20,13 @@ channel_actor(Users, LoggedIn, Messages) ->
 			% Sender ! {self(), logged_in},
 			channel_actor(Users, NewLoggedIn, Messages);
 
-		{Sender, log_out, UserName} ->
+		{_Sender, log_out, UserName} ->
 			NewLoggedIn = dict:erase(UserName, LoggedIn),
 			% Sender ! {self(), logged_out},
 			channel_actor(Users, NewLoggedIn, Messages);
 
-		{Sender, send_message, UserName, MessageText, SendTime} ->
-			Message = {message, UserName, MessageText, SendTime},
+		{Sender, send_message, UserName, ChannelName, MessageText, SendTime} ->
+			Message = {message, UserName, ChannelName, MessageText, SendTime},
 			NewMessages = lists:append([Message], Messages),
 			% broadcast to all logged in users
 			dict:map(fun(_, UserPid) ->
