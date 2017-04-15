@@ -81,6 +81,11 @@ server_actor(Users, LoggedIn, Channels) ->
 			ChannelPid ! {Sender, join_channel, UserName},
 			server_actor(NewUsers, LoggedIn, Channels);
 
+		{Sender, get_channel_history, ChannelName} ->
+			ChannelPid = dict:fetch(ChannelName, Channels),
+			ChannelPid ! {Sender, get_channel_history},
+			server_actor(Users, LoggedIn, Channels);
+
 		{Sender, create_channel, ChannelName} ->
 			ChannelPid = 	spawn_link(channel, channel_actor, [sets:new(), dict:new(), []]),
 			NewChannels = dict:store(ChannelName, ChannelPid, Channels),

@@ -73,14 +73,14 @@ initialize_server() ->
     rand:seed_s(exsplus, {0, 0, 0}),
     NumberOfChannels = 10,
     NumberOfUsers = 5000,
-    ChannelNames = lists:seq(1, NumberOfChannels),
+    ChannelNames = lists:seq(0, NumberOfChannels),
     UserNames = lists:seq(1, NumberOfUsers),
     Channels = dict:from_list(lists:map(fun (Name) ->
         Messages = [{message, 5, Name, "Hello!", os:system_time()},
                     {message, 6, Name, "Hi!", os:system_time()},
                     {message, 5, Name, "Bye!", os:system_time()}],
-        Channel = {channel, Name, Messages},
-        {Name, Channel}
+        ChannelPid = channel:initialize_with_messages(sets:new(), dict:new(), Messages),
+        {Name, ChannelPid}
         end,
         ChannelNames)),
     Users = dict:from_list(lists:map(fun (Name) ->
