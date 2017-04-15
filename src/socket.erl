@@ -38,6 +38,8 @@ socket_actor(MainServerPid, UserName, Channels) ->
 					NewChannels = dict:store(ChannelName, ChannelPid, Channels),
 					% Send confirmation to client
 					Sender ! {ChannelPid, channel_joined},
+					% Log in to newly joined channel
+					ChannelPid ! {Sender, log_in, UserName},
 					socket_actor(MainServerPid, UserName, NewChannels)
 			end;
 
