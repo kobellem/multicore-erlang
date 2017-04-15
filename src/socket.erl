@@ -45,7 +45,7 @@ socket_actor(MainServerPid, UserName, Channels) ->
 
 		{Sender, send_message, ChannelName, MessageText, SendTime} ->
 			ChannelPid = dict:fetch(ChannelName, Channels),
-			ChannelPid ! {Sender, send_message, UserName, MessageText, SendTime},
+			ChannelPid ! {Sender, send_message, UserName, ChannelName, MessageText, SendTime},
 			socket_actor(MainServerPid, UserName, Channels);
 
 		{Sender, get_channel_history, ChannelName} ->

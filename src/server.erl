@@ -7,7 +7,7 @@
 %% experiments. The semantics of the API here should remain unchanged.
 -module(server).
 
--export([register_user/2, log_in/2, log_out/2, join_channel/3, join_channel/2, send_message/4,
+-export([register_user/2, log_in/2, log_out/2, join_channel/3, join_channel/2, send_message/3,
          get_channel_history/2, create_channel/2]).
 
 %%
@@ -66,9 +66,9 @@ join_channel(SocketPid, ChannelName) ->
     end.
 
 % Send a message to a channel.
--spec send_message(pid(), string(), string(), string()) -> message_sent.
-send_message(ServerPid, UserName, ChannelName, MessageText) ->
-    ServerPid ! {self(), send_message, UserName, ChannelName, MessageText, os:system_time()},
+-spec send_message(pid(), string(), string()) -> message_sent.
+send_message(ServerPid, ChannelName, MessageText) ->
+    ServerPid ! {self(), send_message, ChannelName, MessageText, os:system_time()},
     receive
         {_ResponsePid, message_sent} ->
             message_sent
