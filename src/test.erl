@@ -56,36 +56,37 @@ join_channel_test() ->
 	{UserName1, Server1, Channel1, Channel2}.
 
 send_message_test() ->
-	{UserName1, Server1, Channel1, _Channel2} = join_channel_test(),
+	{_UserName1, Server1, Channel1, _Channel2} = join_channel_test(),
 	?assertMatch(message_sent,
-		server:send_message(Server1, UserName1, Channel1, "Hello!")),
+		server:send_message(Server1, Channel1, "Hello!")),
 	?assertMatch(message_sent,
-		server:send_message(Server1, UserName1, Channel1, "How are you?")).
+		server:send_message(Server1, Channel1, "How are you?")).
 
 channel_history_test() ->
 	% Create users, log in, join channels.
 	[UserName1, UserName2 | _] = register_user_test(),
 	{Server1, logged_in} = server:log_in(server_actor, UserName1),
 	{Server2, logged_in} = server:log_in(server_actor, UserName2),
-	Channel1 = channel1,
-	server:join_channel(Server1, UserName1, Channel1),
-	server:join_channel(Server2, UserName2, Channel1),
+	[Channel1 | _] = create_channel_test(),
+	server:join_channel(Server1, Channel1),
+	server:join_channel(Server2, Channel1),
 
 	% Send some messages
-	server:send_message(Server1, UserName1, Channel1, "Hello!"),
-	server:send_message(Server2, UserName2, Channel1, "Hi!"),
-	server:send_message(Server1, UserName1, Channel1, "How are you?"),
+	server:send_message(Server1, Channel1, "Hello!"),
+	server:send_message(Server2, Channel1, "Hi!"),
+	server:send_message(Server1, Channel1, "How are you?"),
 
 	% Check history
-	[{message, UserName1, Channel1, "Hello!", Time1},
+	[{message, UserName1, Channel1, "How are you?", Time1},
 	 {message, UserName2, Channel1, "Hi!", Time2},
-	 {message, UserName1, Channel1, "How are you?", Time3}] =
+	 {message, UserName1, Channel1, "Hello!", Time3}] =
 		server:get_channel_history(Server1, Channel1),
-	?assert(Time1 =< Time2),
-	?assert(Time2 =< Time3).
+	?assert(Time1 >= Time2),
+	?assert(Time2 >= Time3).
 
 typical_session_test() ->
 	initialize_test(),
+	server:create_channel(server_actor, "multicore"),
 	Session1 = spawn_link(?MODULE, typical_session_1, [self()]),
 	Session2 = spawn_link(?MODULE, typical_session_2, [self()]),
 	receive
@@ -99,8 +100,8 @@ typical_session_test() ->
 typical_session_1(TesterPid) ->
 	{_, user_registered} = server:register_user(server_actor, "Jennifer"),
 	{Server, logged_in} = server:log_in(server_actor, "Jennifer"),
-	channel_joined = server:join_channel(Server, "Jennifer", "multicore"),
-	message_sent = server:send_message(Server, "Jennifer", "multicore", "Hello!"),
+	channel_joined = server:join_channel(Server, "multicore"),
+	message_sent = server:send_message(Server, "multicore", "Hello!"),
 	% Wait for reply
 	Time2 = receive
 		{_, new_message, Message} ->
@@ -109,7 +110,7 @@ typical_session_1(TesterPid) ->
 			Time
 	end,
 	% Respond
-	message_sent = server:send_message(Server, "Jennifer", "multicore", "How are you?"),
+	message_sent = server:send_message(Server, "multicore", "How are you?"),
 
 	% Check history
 	[{message, "Jennifer",  "multicore", "Hello!",	   Time1},
@@ -124,7 +125,7 @@ typical_session_1(TesterPid) ->
 typical_session_2(TesterPid) ->
 	{_, user_registered} = server:register_user(server_actor, "Janwillem"),
 	{Server, logged_in} = server:log_in(server_actor, "Janwillem"),
-	channel_joined = server:join_channel(Server, "Janwillem", "multicore"),
+	channel_joined = server:join_channel(Server, "multicore"),
 	% Wait for first message
 	Time1 = receive
 		{_, new_message, Message1} ->
@@ -133,7 +134,7 @@ typical_session_2(TesterPid) ->
 			Time
 	end,
 	% Reply
-	message_sent = server:send_message(Server, "Janwillem", "multicore", "Hi!"),
+	message_sent = server:send_message(Server, "multicore", "Hi!"),
 	% Wait for response
 	Time3 = receive
 		{_, new_message, Message3} ->
