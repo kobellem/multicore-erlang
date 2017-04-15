@@ -144,15 +144,20 @@ test_send_message() ->
             {ServerPid, _Channels, Users, Clients} =
                 initialize_server_and_some_clients(ClientFun),
 
-            ChosenUserNames = lists:sublist(dict:fetch_keys(Users), 1000),
+						FilteredUsers = dict:filter(fun(Name, _Subscriptions) ->
+							Name > "100"
+						end, Users),
+            ChosenUserNames = lists:sublist(dict:fetch_keys(FilteredUsers), 1000),
             send_message_for_users(ServerPid, ChosenUserNames, Users, Clients)
         end,
         30).
 
 send_message_for_users(ServerPid, ChosenUserNames, Users, Clients) ->
-    % For each of the chosen users, send a message to channel 1.
+		% For each of the chosen users, send a message to channel 1.
     lists:foreach(fun (UserName) ->
-            server:send_message(ServerPid, UserName, 1, "Test")
+						SocketPid = server:log_in(ServerPid, UserName),
+						SocketPid ! {self(), join_channel, 1},
+            server:send_message(SocketPid, 1, "Test")
         end,
         ChosenUserNames),
     % For each of the active clients, that subscribe to channel 1, wait until
