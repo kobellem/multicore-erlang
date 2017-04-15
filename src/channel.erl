@@ -1,10 +1,16 @@
 -module(channel).
 
--export([initialize_with/2, channel_actor/3]).
+-export([initialize_with/2, initialize_with_messages/3, channel_actor/3]).
 
 % Start new channel
 initialize_with(Users, LoggedIn) ->
 	ChannelPid = spawn_link(?MODULE, channel_actor, [Users, LoggedIn, dict:new()]),
+	catch unregister(channel_actor),
+	ChannelPid.
+
+%initialize with messages, to be used by benchmarks
+initialize_with_messages(Users, LoggedIn, Messages) ->
+	ChannelPid = spawn_link(?MODULE, channel_actor, [Users, LoggedIn, Messages]),
 	catch unregister(channel_actor),
 	ChannelPid.
 
