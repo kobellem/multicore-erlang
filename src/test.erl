@@ -102,6 +102,11 @@ typical_session_1(TesterPid) ->
 	{Server, logged_in} = server:log_in(server_actor, "Jennifer"),
 	channel_joined = server:join_channel(Server, "multicore"),
 	message_sent = server:send_message(Server, "multicore", "Hello!"),
+	% ignore broadcast of own message
+	receive
+		{_, new_message, _} ->
+			ignore
+	end,
 	% Wait for reply
 	Time2 = receive
 		{_, new_message, Message} ->
@@ -113,12 +118,12 @@ typical_session_1(TesterPid) ->
 	message_sent = server:send_message(Server, "multicore", "How are you?"),
 
 	% Check history
-	[{message, "Jennifer",  "multicore", "Hello!",	   Time1},
+	[{message, "Jennifer",  "multicore", "How are you?",	   Time1},
 	 {message, "Janwillem", "multicore", "Hi!",		  Time2},
-	 {message, "Jennifer",  "multicore", "How are you?", Time3}] =
+	 {message, "Jennifer",  "multicore", "Hello!", Time3}] =
 		server:get_channel_history(Server, "multicore"),
-	?assert(Time1 =< Time2),
-	?assert(Time2 =< Time3),
+	?assert(Time1 >= Time2),
+	?assert(Time2 >= Time3),
 
 	TesterPid ! {self(), ok}.
 
@@ -136,6 +141,11 @@ typical_session_2(TesterPid) ->
 	% Reply
 	message_sent = server:send_message(Server, "multicore", "Hi!"),
 	% Wait for response
+	% ignore broadcast of own message
+	receive
+		{_, new_message, _} ->
+			ignore
+	end,
 	Time3 = receive
 		{_, new_message, Message3} ->
 			?assertMatch({message, "Jennifer", "multicore", "How are you?", _}, Message3),
@@ -144,9 +154,9 @@ typical_session_2(TesterPid) ->
 	end,
 
 	% Check history
-	[{message, "Jennifer",  "multicore", "Hello!",	   Time1},
+	[{message, "Jennifer",  "multicore", "How are you?",	   Time3},
 	 {message, "Janwillem", "multicore", "Hi!",		  Time2},
-	 {message, "Jennifer",  "multicore", "How are you?", Time3}] =
+	 {message, "Jennifer",  "multicore", "Hello!", Time1}] =
 		server:get_channel_history(Server, "multicore"),
 	?assert(Time1 =< Time2),
 	?assert(Time2 =< Time3),
