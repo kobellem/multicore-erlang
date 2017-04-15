@@ -7,7 +7,7 @@
 %% experiments. The semantics of the API here should remain unchanged.
 -module(server).
 
--export([register_user/2, log_in/2, log_out/2, join_channel/3, send_message/4,
+-export([register_user/2, log_in/2, log_out/2, join_channel/3, join_channel/2, send_message/4,
          get_channel_history/2, create_channel/2]).
 
 %%
@@ -47,10 +47,19 @@ log_out(ServerPid, UserName) ->
             logged_out
     end.
 
-% Join a channel.
+% Join a channel. Admin mode on master server
 -spec join_channel(pid(), string(), string()) -> channel_joined.
 join_channel(ServerPid, UserName, ChannelName) ->
     ServerPid ! {self(), join_channel, UserName, ChannelName},
+    receive
+        {_ResponsePid, channel_joined} ->
+            channel_joined
+    end.
+
+% Join a channel. Client mode
+-spec join_channel(pid(), string()) -> channel_joined.
+join_channel(SocketPid, ChannelName) ->
+    SocketPid ! {self(), join_channel, ChannelName},
     receive
         {_ResponsePid, channel_joined} ->
             channel_joined

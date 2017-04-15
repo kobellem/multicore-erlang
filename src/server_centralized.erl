@@ -42,12 +42,17 @@ initialize_with(Users, LoggedIn, Channels) ->
 %	 {channel, Name, Pid}
 %   where Messages is a list of messages, of the form:
 %	 {message, UserName, ChannelName, MessageText, SendTime}
+%	 TODO remove assumptions, they can only crash the program
 server_actor(Users, LoggedIn, Channels) ->
 	receive
 		{Sender, register_user, UserName} ->
 			% Join user in main channel
 			ChannelPid = dict:fetch(main, Channels), % assumes main channel exists
-			ChannelPid ! {Sender, join_channel, UserName},
+			ChannelPid ! {self(), join_channel, UserName},
+			receive
+				{_MainChannelPid, channel_joined} ->
+					ok
+			end,
 			Subscriptions = sets:new(),
 			NewUsers = dict:store(UserName, {user, UserName, sets:add_element(main, Subscriptions)}, Users),
 			% Send confirmation to client
@@ -58,24 +63,13 @@ server_actor(Users, LoggedIn, Channels) ->
 			NewLoggedIn = dict:store(UserName, Sender, LoggedIn),
 			% Send logged in signal to all subscribed channels
 			{_, _, Subscriptions} = dict:fetch(UserName, Users), % assumes user exists
-			SubscriptionList = sets:to_list(Subscriptions),
-			Login = fun(ChannelName) ->
-				ChannelPid = dict:fetch(ChannelName, Channels), % assumes channel exists
-				ChannelPid ! {Sender, log_in, UserName}
-			end,
-			lists:foreach(Login, SubscriptionList),
+			UserChannels = filter_channels(Subscriptions, Channels),
+			spawn_link(socket, initialize, [self(), Sender, UserName, UserChannels]),
 			server_actor(Users, NewLoggedIn, Channels);
 
 		{Sender, log_out, UserName} ->
 			NewLoggedIn = dict:erase(UserName, LoggedIn),
-			% Send logged out signal to all subscribed channels
-			{_, _, Subscriptions} = dict:fetch(UserName, Users), % assumes user exists
-			SubscriptionList = sets:to_list(Subscriptions),
-			Logout = fun(ChannelName) ->
-				ChannelPid = dict:fetch(ChannelName, Channels), % assumes channel exists
-				ChannelPid ! {Sender, log_out, UserName}
-			end,
-			lists:foreach(Logout, SubscriptionList),
+			Sender ! {self(), logged_out},
 			server_actor(Users, NewLoggedIn, Channels);
 
 		{Sender, join_channel, UserName, ChannelName} ->
@@ -86,17 +80,6 @@ server_actor(Users, LoggedIn, Channels) ->
 			ChannelPid = dict:fetch(ChannelName, Channels), % assumes channel exists
 			ChannelPid ! {Sender, join_channel, UserName},
 			server_actor(NewUsers, LoggedIn, Channels);
-
-		{Sender, send_message, UserName, ChannelName, MessageText, SendTime} ->
-			% send message to channel
-			ChannelPid = dict:fetch(ChannelName, Channels),
-			ChannelPid ! {Sender, send_message, UserName, MessageText, SendTime},
-			server_actor(Users, LoggedIn, Channels);
-
-		{Sender, get_channel_history, ChannelName} ->
-			ChannelPid = dict:fetch(ChannelName, Channels),
-			ChannelPid ! {Sender, get_channel_history},
-			server_actor(Users, LoggedIn, Channels);
 
 		{Sender, create_channel, ChannelName} ->
 			ChannelPid = 	spawn_link(channel, channel_actor, [sets:new(), dict:new(), []]),
@@ -113,3 +96,11 @@ server_actor(Users, LoggedIn, Channels) ->
 % Modify `User` to join `ChannelName`.
 join_channel({user, Name, Subscriptions}, ChannelName) ->
 	{user, Name, sets:add_element(ChannelName, Subscriptions)}.
+
+% Get a filtered channels dict based on user subscriptions
+filter_channels(Subscriptions, Channels) ->
+	SubscriptionList = sets:to_list(Subscriptions),
+	Filter = fun(ChannelName, _) ->
+		lists:member(ChannelName, SubscriptionList)
+	end,
+	dict:filter(Filter, Channels).

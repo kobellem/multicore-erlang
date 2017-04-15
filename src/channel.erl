@@ -17,12 +17,12 @@ channel_actor(Users, LoggedIn, Messages) ->
 
 		{Sender, log_in, UserName} ->
 			NewLoggedIn = dict:store(UserName, Sender, LoggedIn),
-			Sender ! {self(), logged_in},
+			% Sender ! {self(), logged_in},
 			channel_actor(Users, NewLoggedIn, Messages);
 
 		{Sender, log_out, UserName} ->
 			NewLoggedIn = dict:erase(UserName, LoggedIn),
-			Sender ! {self(), logged_out},
+			% Sender ! {self(), logged_out},
 			channel_actor(Users, NewLoggedIn, Messages);
 
 		{Sender, send_message, UserName, MessageText, SendTime} ->
