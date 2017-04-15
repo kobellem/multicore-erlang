@@ -47,12 +47,13 @@ create_channel_test() ->
 
 join_channel_test() ->
 	[UserName1 | _] = register_user_test(),
+	[Channel1, Channel2] = create_channel_test(),
 	{Server1, logged_in} = server:log_in(server_actor, UserName1),
 	?assertMatch(channel_joined,
-		server:join_channel(Server1, UserName1, channel1)),
+		server:join_channel(Server1, Channel1)),
 	?assertMatch(channel_joined,
-		server:join_channel(Server1, UserName1, channel2)),
-	{UserName1, Server1, channel1, channel2}.
+		server:join_channel(Server1, Channel2)),
+	{UserName1, Server1, Channel1, Channel2}.
 
 send_message_test() ->
 	{UserName1, Server1, Channel1, _Channel2} = join_channel_test(),
